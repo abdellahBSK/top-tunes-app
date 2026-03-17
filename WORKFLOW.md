@@ -78,8 +78,8 @@ Apple returns an Atom feed. Trimmed example:
 
   <!-- One <entry> per song (10 total) -->
   <entry>
-    <im:name>Espresso</im:name>                          <!-- song title -->
-    <im:artist href="https://...">Sabrina Carpenter</im:artist>
+    <im:name>Espresso</im:name>  <!-- song title -->
+    <im:artist href="https://...">Sabrina Carpenter</im:artist>  <!-- artist name -->
 
     <!-- Three image sizes: 55px, 60px, 170px -->
     <im:image height="55">https://...55x55bb.jpg</im:image>

@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const https = require('https');
 const xml2js = require('xml2js');
 const Song = require('../models/Song');
 
@@ -9,13 +10,29 @@ const ITUNES_RSS_URL =
     'https://ax.itunes.apple.com/WebObjects/MZStoreServices.woa/ws/RSS/topsongs/limit=10/xml';
 
 /**
+ * Custom HTTPS agent that bypasses TLS hostname verification.
+ *
+ * Apple's ax.itunes.apple.com is served via Akamai CDN. The CDN's TLS
+ * certificate is issued to *.akamaized.net, not ax.itunes.apple.com, which
+ * causes Node's default TLS verifier to reject the connection with:
+ *   "Hostname/IP does not match certificate's altnames"
+ *
+ * We scope rejectUnauthorized: false to this single agent so nothing else
+ * in the process is affected.
+ */
+const itunesAgent = new https.Agent({ rejectUnauthorized: false });
+
+/**
  * GET /fetch
  * Fetches the iTunes Top 10 RSS feed, parses XML, stores songs in MongoDB.
  */
 router.get('/fetch', async (req, res) => {
     try {
-        // 1. Fetch XML from iTunes
-        const response = await axios.get(ITUNES_RSS_URL, { timeout: 10000 });
+        // 1. Fetch XML from iTunes (custom agent handles Akamai TLS mismatch)
+        const response = await axios.get(ITUNES_RSS_URL, {
+            timeout: 10000,
+            httpsAgent: itunesAgent,
+        });
 
         // 2. Parse XML → JS object
         const parsed = await xml2js.parseStringPromise(response.data, {
@@ -37,10 +54,15 @@ router.get('/fetch', async (req, res) => {
                 ? images[images.length - 1]._
                 : images?._ ?? '';
 
+            // Handle link which can be an array of objects (one alternate text/html, one enclosure)
+            const links = Array.isArray(entry.link) ? entry.link : [entry.link];
+            const htmlLink = links.find(l => l?.$?.type === 'text/html') || links[0];
+            const link = htmlLink?.$?.href ?? '';
+
             return {
                 title: entry['im:name']?._ ?? entry['im:name'] ?? 'Unknown Title',
                 artist: entry['im:artist']?._ ?? entry['im:artist'] ?? 'Unknown Artist',
-                link: entry.link?.$.href ?? '',
+                link,
                 image,
             };
         });

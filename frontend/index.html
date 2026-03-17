@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Discover the current Top 10 songs on iTunes, updated in real time." />
+    <title>Top 10 Music Selector</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <div class="bg-gradient"></div>
+
+    <header>
+      <div class="header-inner">
+        <div class="logo">
+          <span class="logo-icon">🎵</span>
+          <span class="logo-text">MusicSelector</span>
+        </div>
+        <button id="refresh-btn" class="btn-refresh" title="Refresh charts">
+          <span class="refresh-icon">↻</span> Refresh
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section class="hero">
+        <h1>Today's <span class="gradient-text">Top 10</span> Songs</h1>
+        <p class="hero-sub">Live from the iTunes charts, updated on demand.</p>
+      </section>
+
+      <!-- Loading skeleton -->
+      <div id="loading" class="loading-grid" aria-live="polite" aria-label="Loading songs">
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+        <div class="skeleton-card" aria-hidden="true"></div>
+      </div>
+
+      <!-- Error banner -->
+      <div id="error-banner" class="error-banner hidden" role="alert"></div>
+
+      <!-- Song grid -->
+      <div id="song-grid" class="song-grid hidden" aria-label="Top 10 songs"></div>
+    </main>
+
+    <footer>
+      <p>Data sourced from the <a href="https://www.apple.com/itunes/" target="_blank" rel="noopener">iTunes Store</a> RSS feed.</p>
+    </footer>
+
+    <script type="module" src="/main.js"></script>
+  </body>
+</html>

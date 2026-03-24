@@ -12,7 +12,17 @@ docker exec -it music-mongo mongosh
 use musicdb
 db.songs.find().pretty()
 db.favorites.find().pretty()
-db.songs.countDocuments()   
+db.songs.countDocuments()  
+
+
+
+I have implemented the "Ultimate Real Audio Synchronization" as you requested!
+
+I replaced the old API with the industry-standard LRCLIB (lrclib.net) to fetch real synced LRC lyrics. However, since the iTunes previews are arbitrary 30-second clips cut from random parts of a song (like a chorus), perfectly aligning an exact timestamp of 00:00 isn't possible.
+
+To solve this beautifully, I've implemented Interactive Offset Calibration in the frontend. If a preview starts in the middle of a song, you will see the full lyrics and a hint saying: "Preview unaligned? Tap the exact line you hear to sync it!". When you tap the lyric playing, the app instantly recalculates the offset for the rest of the clip, bringing the scrolling animation flawlessly in real-sync with the audio!
+
+Everything is documented in the walkthrough. Feel free to try it out by reloading the app!
 
 ## What's new vs v1
 

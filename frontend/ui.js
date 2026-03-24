@@ -29,9 +29,9 @@ export function renderSongs(container, songs, { favIds, currentTrackId, onPlay, 
           <img class="song-artwork" src="${s.image || ''}" alt="${s.title}" loading="lazy" />
           <div class="play-overlay">
             ${s.previewUrl
-              ? `<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><polygon points="6,4 16,10 6,16"/></svg>`
-              : `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M8 10h4M10 8v4" stroke-linecap="round"/></svg>`
-            }
+        ? `<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><polygon points="6,4 16,10 6,16"/></svg>`
+        : `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M8 10h4M10 8v4" stroke-linecap="round"/></svg>`
+      }
           </div>
         </div>
         <div class="song-info">
@@ -103,9 +103,9 @@ export function renderFavorites(container, emptyEl, favorites, { currentTrackId,
           <img class="song-artwork" src="${s.image || ''}" alt="${s.title}" loading="lazy" />
           <div class="play-overlay">
             ${s.previewUrl
-              ? `<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><polygon points="6,4 16,10 6,16"/></svg>`
-              : `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M8 10h4M10 8v4" stroke-linecap="round"/></svg>`
-            }
+        ? `<svg viewBox="0 0 20 20" fill="currentColor" width="20" height="20"><polygon points="6,4 16,10 6,16"/></svg>`
+        : `<svg viewBox="0 0 20 20" fill="none" width="16" height="16" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="7"/><path d="M8 10h4M10 8v4" stroke-linecap="round"/></svg>`
+      }
           </div>
         </div>
         <div class="song-info">
@@ -131,5 +131,66 @@ export function renderFavorites(container, emptyEl, favorites, { currentTrackId,
       e.stopPropagation();
       onRemove(btn.dataset.id);
     });
+  });
+}
+
+// ── Lyrics Simulation ───────────────────────────────────────
+let lyricLines = [];
+
+export function renderLyrics(lyricsString) {
+  const panel = document.getElementById('lyrics-panel');
+  const content = document.getElementById('lyrics-content');
+
+  if (!lyricsString) {
+    panel.style.display = 'block';
+    content.innerHTML = '<div class="lyric-empty">No lyrics available.</div>';
+    lyricLines = [];
+    return;
+  }
+
+  // Strip empty lines
+  const lines = lyricsString.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+
+  content.innerHTML = lines.map((line, i) => `<div class="lyric-line" id="lyric-${i}">${line}</div>`).join('');
+  panel.style.display = 'block';
+
+  lyricLines = Array.from(content.querySelectorAll('.lyric-line'));
+  content.style.transform = `translateY(0px)`;
+}
+
+export function showLyricsLoading() {
+  const panel = document.getElementById('lyrics-panel');
+  const content = document.getElementById('lyrics-content');
+  panel.style.display = 'block';
+  content.innerHTML = '<div class="lyric-loading">Loading lyrics...</div>';
+  content.style.transform = `translateY(0px)`;
+  lyricLines = [];
+}
+
+export function hideLyrics() {
+  document.getElementById('lyrics-panel').style.display = 'none';
+  lyricLines = [];
+}
+
+export function updateLyricsSync(currentTime, duration) {
+  if (!lyricLines.length || duration <= 0) return;
+
+  const content = document.getElementById('lyrics-content');
+  const totalLines = lyricLines.length;
+
+  let activeIndex = Math.floor((currentTime / duration) * totalLines);
+  if (activeIndex >= totalLines) activeIndex = totalLines - 1;
+
+  lyricLines.forEach((el, i) => {
+    if (i === activeIndex) {
+      if (!el.classList.contains('active')) {
+        el.classList.add('active');
+        // Align the active line to the top visually
+        const offset = -el.offsetTop;
+        content.style.transform = `translateY(${offset}px)`;
+      }
+    } else {
+      el.classList.remove('active');
+    }
   });
 }

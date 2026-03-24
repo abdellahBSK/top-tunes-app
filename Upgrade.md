@@ -3,6 +3,7 @@
 App 1 upgraded to surpass App 2 — with audio previews, favorites/playlist, search, dark/light mode, and a clean layered backend.
 
 ---
+docker rm -f music-mongo music-redis music-backend 2>/dev/null; docker compose down 2>/dev/null
 
 # Get a shell inside the mongo container
 docker exec -it music-mongo mongosh

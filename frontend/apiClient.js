@@ -36,3 +36,13 @@ export async function removeFavorite(trackId) {
   });
   return r.json();
 }
+
+export async function getLyrics(artist, title) {
+  const url = `${BASE}/lyrics?artist=${encodeURIComponent(artist)}&title=${encodeURIComponent(title)}`;
+  const r = await fetch(url);
+  if (!r.ok) {
+    if (r.status === 404) return null;
+    throw new Error('Failed to load lyrics');
+  }
+  return r.json();
+}

@@ -1,5 +1,5 @@
-import { fetchFromApple, getSongs, getFavorites, addFavorite, removeFavorite } from './apiClient.js';
-import { renderSkeleton, renderSongs, updateNowPlaying, updateProgress, renderFavorites } from './ui.js';
+import { fetchFromApple, getSongs, getFavorites, addFavorite, removeFavorite, getLyrics } from './apiClient.js';
+import { renderSkeleton, renderSongs, updateNowPlaying, updateProgress, renderFavorites, renderLyrics, showLyricsLoading, hideLyrics, updateLyricsSync } from './ui.js';
 
 // ── State ──────────────────────────────────────────────────────
 let songs = [];
@@ -11,17 +11,17 @@ let isFetching = false;
 const audio = document.getElementById('audio-player');
 
 // ── Elements ───────────────────────────────────────────────────
-const songListEl     = document.getElementById('song-list');
-const skeletonEl     = document.getElementById('skeleton');
-const favListEl      = document.getElementById('favorites-list');
-const favEmptyEl     = document.getElementById('favorites-empty');
-const favCountEl     = document.getElementById('fav-count');
-const btnRefresh     = document.getElementById('btn-refresh');
-const btnTheme       = document.getElementById('btn-theme');
-const btnStop        = document.getElementById('np-stop');
-const searchInput    = document.getElementById('search-input');
-const iconMoon       = document.getElementById('icon-moon');
-const iconSun        = document.getElementById('icon-sun');
+const songListEl = document.getElementById('song-list');
+const skeletonEl = document.getElementById('skeleton');
+const favListEl = document.getElementById('favorites-list');
+const favEmptyEl = document.getElementById('favorites-empty');
+const favCountEl = document.getElementById('fav-count');
+const btnRefresh = document.getElementById('btn-refresh');
+const btnTheme = document.getElementById('btn-theme');
+const btnStop = document.getElementById('np-stop');
+const searchInput = document.getElementById('search-input');
+const iconMoon = document.getElementById('icon-moon');
+const iconSun = document.getElementById('icon-sun');
 
 // ── Theme ──────────────────────────────────────────────────────
 function initTheme() {
@@ -33,7 +33,7 @@ function applyTheme(t) {
   document.documentElement.setAttribute('data-theme', t);
   localStorage.setItem('theme', t);
   iconMoon.style.display = t === 'dark' ? 'none' : 'block';
-  iconSun.style.display  = t === 'dark' ? 'block' : 'none';
+  iconSun.style.display = t === 'dark' ? 'block' : 'none';
 }
 btnTheme.addEventListener('click', () => {
   const cur = document.documentElement.getAttribute('data-theme');
@@ -60,10 +60,15 @@ function playSong(song) {
   }
   currentSong = song;
   audio.src = song.previewUrl;
-  audio.play().catch(() => {});
+  audio.play().catch(() => { });
   updateNowPlaying(song);
   document.getElementById('now-playing').style.display = 'grid';
   rerenderLists();
+
+  showLyricsLoading();
+  getLyrics(song.author, song.title)
+    .then(data => renderLyrics(data?.lyrics))
+    .catch(() => renderLyrics(null));
 }
 
 function stopSong() {
@@ -72,12 +77,14 @@ function stopSong() {
   currentSong = null;
   updateNowPlaying(null);
   rerenderLists();
+  hideLyrics();
 }
 
 audio.addEventListener('timeupdate', () => {
   if (!audio.duration) return;
   const pct = (audio.currentTime / audio.duration) * 100;
   updateProgress(pct, audio.currentTime);
+  updateLyricsSync(audio.currentTime, audio.duration);
 });
 audio.addEventListener('ended', stopSong);
 btnStop?.addEventListener('click', stopSong);

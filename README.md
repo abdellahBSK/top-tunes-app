@@ -3,7 +3,8 @@
 A modern, high-performance music curation application. **Music Selector v2** upgrades the original concept with a robust layered backend, real-time audio previews, persistent user favorites, and a sleek dual-theme interface.
 
 ---
-
+![alt text](overview.png)
+![alt text](image.png)
 ## 🌟 Key Features
 
 | Feature | Description |

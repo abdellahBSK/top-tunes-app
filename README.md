@@ -4,7 +4,7 @@ A modern, high-performance music curation application. **Music Selector v2** upg
 
 ---
 ![alt text](overview.png)
-![alt text](image.png)
+![alt text](favorite.png)
 ## 🌟 Key Features
 
 | Feature | Description |

@@ -1,111 +1,142 @@
-# Top 10 Music Selector
+# Music Selector v2
 
-A full-stack application that fetches the **Top 10 songs** from the iTunes RSS feed, stores them in MongoDB, and displays them in a sleek dark-themed Vite frontend.
+App 1 upgraded to surpass App 2 — with audio previews, favorites/playlist, search, dark/light mode, and a clean layered backend.
+
+---
+
+# Get a shell inside the mongo container
+docker exec -it music-mongo mongosh
+
+# Then inside mongosh:
+use musicdb
+db.songs.find().pretty()
+db.favorites.find().pretty()
+db.songs.countDocuments()   
+
+## What's new vs v1
+
+| Feature | v1 | v2 |
+|---|---|---|
+| 30s audio preview | ✗ | ✅ via iTunes Lookup API |
+| Playback progress bar | ✗ | ✅ animated |
+| Favorites / playlist | ✗ | ✅ persisted in MongoDB |
+| Search / filter | ✗ | ✅ client-side + text index |
+| Dark / light mode toggle | ✗ | ✅ with system preference detection |
+| Cached DB endpoint | ✗ | ✅ `GET /songs` (no Apple call) |
+| Layered backend | ✗ | ✅ config / database / models / routes / services |
+| Makefile | ✗ | ✅ `make dev`, `make build`, `make clean` |
+| Vite proxy (no CORS in dev) | ✗ | ✅ |
+| Express static serving (prod) | ✗ | ✅ serves built frontend |
 
 ---
 
 ## Tech stack
 
-| Layer     | Technology                            |
-|-----------|---------------------------------------|
-| Frontend  | Vite (vanilla JS), HTML5, CSS3        |
-| Backend   | Node.js 20, Express, Axios, xml2js    |
-| Database  | MongoDB 7 (via Mongoose)              |
-| DevOps    | Docker, Docker Compose                |
+| Layer | Technology |
+|---|---|
+| Frontend | Vite (vanilla JS), HTML5, CSS3 |
+| Backend | Node.js 20, Express, Axios, xml2js |
+| Database | MongoDB 7 (Mongoose) |
+| DevOps | Docker, Docker Compose, Makefile |
 
 ---
 
 ## Project structure
 
 ```
-music-selector/
+music-selector-v2/
 ├── backend/
+│   ├── app/
+│   │   └── createExpressApp.js   # App factory, middleware, routes
+│   ├── config/
+│   │   └── env.js                # Centralised env vars
+│   ├── database/
+│   │   └── mongo.js              # Mongoose connection
+│   ├── middleware/
+│   │   └── errorHandler.js       # Global error handler
 │   ├── models/
-│   │   └── Song.js          # Mongoose schema
+│   │   ├── songModel.js          # Song schema (+ text index)
+│   │   └── favoriteModel.js      # Favorites schema
 │   ├── routes/
-│   │   └── songs.js         # GET /fetch  &  GET /songs
-│   ├── server.js            # Express entry point
-│   ├── package.json
+│   │   ├── songRoutes.js         # GET /songs, GET /songs/fetch
+│   │   └── favoriteRoutes.js     # GET/POST/DELETE /favorites
+│   ├── services/
+│   │   ├── songService.js        # iTunes RSS + Lookup enrichment
+│   │   └── favoriteService.js    # Favorites CRUD
+│   ├── server.js
 │   ├── Dockerfile
-│   └── .dockerignore
+│   └── package.json
 ├── frontend/
 │   ├── index.html
-│   ├── main.js              # Fetch logic, card rendering
-│   ├── style.css            # Dark theme, animations
+│   ├── main.js                   # App init, audio, tabs, search, theme
+│   ├── apiClient.js              # fetch wrappers for all endpoints
+│   ├── ui.js                     # Render songs, favorites, skeleton, NowPlaying
+│   ├── style.css                 # Dark/light theme, editorial aesthetic
+│   ├── vite.config.js            # Dev proxy + prod build
 │   └── package.json
-└── docker-compose.yml
+├── docker-compose.yml
+├── Makefile
+└── .gitignore
 ```
 
 ---
 
-## Running the application
+## Quick start
 
-### Requirements
-
-- [Docker](https://docs.docker.com/get-docker/) ≥ 24
-- [Docker Compose](https://docs.docker.com/compose/) v2 (included with Docker Desktop)
-
-### 1 — Start the backend + database
+### Development (recommended)
+Runs the backend + MongoDB in Docker, frontend on Vite's dev server (with HMR):
 
 ```bash
-cd music-selector
-docker-compose up --build
+make dev
 ```
 
-This will:
-1. Pull and start **MongoDB 7** (port `27017`)
-2. Build and start the **Node.js backend** (port `5000`)
-3. The backend waits for MongoDB to be healthy before starting.
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:5000
 
-### 2 — Open the frontend
+Vite proxies `/songs`, `/favorites`, `/health` to the backend — no CORS issues.
 
-The frontend is a plain Vite app (no Docker container needed — open it directly):
+### Production build
+Builds the frontend with Vite, then Express serves the `dist/` folder:
 
 ```bash
-cd frontend
-npm install
-npm run dev
+make build
 ```
 
-Then visit **http://localhost:5173** in your browser.
-
-> **Alternatively**, open `frontend/index.html` directly in your browser — it will still call `http://localhost:5000` for data.
+- Everything at: http://localhost:5000
 
 ---
 
 ## API endpoints
 
-| Method | Endpoint  | Description                                      |
-|--------|-----------|--------------------------------------------------|
-| GET    | `/fetch`  | Pulls iTunes RSS, parses XML, stores in MongoDB  |
-| GET    | `/songs`  | Returns all stored songs as JSON                 |
-| GET    | `/health` | Simple health-check → `{ "status": "ok" }`       |
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/songs` | Return cached songs from MongoDB. Accepts `?search=` |
+| `GET` | `/songs/fetch` | Hit Apple RSS + iTunes Lookup, refresh DB, return songs |
+| `GET` | `/favorites` | Return all favorites |
+| `POST` | `/favorites` | Add a song to favorites |
+| `DELETE` | `/favorites/:trackId` | Remove a song from favorites |
+| `GET` | `/health` | Health check |
+
+---
+
+## Makefile targets
+
+| Target | Description |
+|---|---|
+| `make dev` | Start Docker backend + Vite dev server |
+| `make build` | Build frontend, start full prod stack |
+| `make up` | Docker-compose up (backend + mongo only) |
+| `make down` | Stop containers |
+| `make logs` | Follow backend logs |
+| `make install` | npm install in both backend and frontend |
+| `make clean` | Stop containers, remove volumes + node_modules |
 
 ---
 
 ## Environment variables
 
-| Variable    | Default                          | Description              |
-|-------------|----------------------------------|--------------------------|
-| `MONGO_URI` | `mongodb://mongo:27017/musicdb`  | MongoDB connection string |
-| `PORT`      | `5000`                           | Express server port       |
-
----
-
-## Features
-
-- 🎵 **Live iTunes data** — fetched fresh on every page load
-- 🔄 **Refresh button** — re-fetches without reloading the page
-- 💀 **Skeleton loader** — animated shimmer while data loads
-- 🚫 **Duplicate-call guard** — prevents concurrent fetch requests
-- 📱 **Responsive grid** — 2-column on mobile, auto-fill on desktop
-- 🎨 **Dark theme** — glassmorphism header, staggered card animations
-
----
-
-## Stopping the services
-
-```bash
-docker-compose down          # stop containers
-docker-compose down -v       # stop and remove MongoDB volume
-```
+| Variable | Default | Description |
+|---|---|---|
+| `MONGO_URI` | `mongodb://mongo:27017/musicdb` | MongoDB connection string |
+| `PORT` | `5000` | Express port |
+| `NODE_ENV` | `development` | Set to `production` to serve Vite build |

@@ -1,126 +1,188 @@
-/**
- * main.js — Top 10 Music Selector
- *
- * Responsibilities:
- *  1. On page load, call /fetch to pull fresh iTunes data into MongoDB.
- *  2. Call /songs to retrieve and render the stored songs.
- *  3. Expose a Refresh button that re-runs both calls.
- *  4. Guard against concurrent fetch calls.
- */
+import { fetchFromApple, getSongs, getFavorites, addFavorite, removeFavorite } from './apiClient.js';
+import { renderSkeleton, renderSongs, updateNowPlaying, updateProgress, renderFavorites } from './ui.js';
 
-const API_BASE = 'http://localhost:5000';
+// ── State ──────────────────────────────────────────────────────
+let songs = [];
+let favorites = [];
+let favIds = new Set();
+let currentSong = null;
+let isFetching = false;
 
-const loadingEl = document.getElementById('loading');
-const gridEl = document.getElementById('song-grid');
-const errorEl = document.getElementById('error-banner');
-const refreshBtn = document.getElementById('refresh-btn');
+const audio = document.getElementById('audio-player');
 
-let isFetching = false; // prevent concurrent calls
+// ── Elements ───────────────────────────────────────────────────
+const songListEl     = document.getElementById('song-list');
+const skeletonEl     = document.getElementById('skeleton');
+const favListEl      = document.getElementById('favorites-list');
+const favEmptyEl     = document.getElementById('favorites-empty');
+const favCountEl     = document.getElementById('fav-count');
+const btnRefresh     = document.getElementById('btn-refresh');
+const btnTheme       = document.getElementById('btn-theme');
+const btnStop        = document.getElementById('np-stop');
+const searchInput    = document.getElementById('search-input');
+const iconMoon       = document.getElementById('icon-moon');
+const iconSun        = document.getElementById('icon-sun');
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+// ── Theme ──────────────────────────────────────────────────────
+function initTheme() {
+  const saved = localStorage.getItem('theme') ||
+    (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  applyTheme(saved);
+}
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('theme', t);
+  iconMoon.style.display = t === 'dark' ? 'none' : 'block';
+  iconSun.style.display  = t === 'dark' ? 'block' : 'none';
+}
+btnTheme.addEventListener('click', () => {
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+});
 
-/** Show/hide skeleton loader */
-function setLoading(active) {
-    loadingEl.classList.toggle('hidden', !active);
-    gridEl.classList.toggle('hidden', active);
-    errorEl.classList.add('hidden');
-    refreshBtn.disabled = active;
-    refreshBtn.classList.toggle('spinning', active);
+// ── Tabs ───────────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn[data-tab]').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-btn[data-tab]').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === tab));
+    document.querySelectorAll('.tab-content').forEach(s =>
+      s.classList.toggle('active', s.id === `tab-${tab}`));
+    if (tab === 'favorites') refreshFavorites();
+  });
+});
+
+// ── Audio ──────────────────────────────────────────────────────
+function playSong(song) {
+  if (!song.previewUrl) return;
+  if (currentSong?.trackId === song.trackId) {
+    stopSong(); return;
+  }
+  currentSong = song;
+  audio.src = song.previewUrl;
+  audio.play().catch(() => {});
+  updateNowPlaying(song);
+  document.getElementById('now-playing').style.display = 'grid';
+  rerenderLists();
 }
 
-/** Display an error message */
-function showError(message) {
-    errorEl.textContent = `⚠️  ${message}`;
-    errorEl.classList.remove('hidden');
-    loadingEl.classList.add('hidden');
+function stopSong() {
+  audio.pause();
+  audio.src = '';
+  currentSong = null;
+  updateNowPlaying(null);
+  rerenderLists();
 }
 
-/** Build a single song card element */
-function createCard(song, rank) {
-    const card = document.createElement('a');
-    card.className = 'song-card';
-    card.href = song.link || '#';
-    card.target = '_blank';
-    card.rel = 'noopener noreferrer';
-    card.setAttribute('aria-label', `${song.title} by ${song.artist} — listen on iTunes`);
+audio.addEventListener('timeupdate', () => {
+  if (!audio.duration) return;
+  const pct = (audio.currentTime / audio.duration) * 100;
+  updateProgress(pct, audio.currentTime);
+});
+audio.addEventListener('ended', stopSong);
+btnStop?.addEventListener('click', stopSong);
 
-    card.innerHTML = `
-    <span class="card-rank">#${rank}</span>
-    <div class="card-img-wrap">
-      <img
-        src="${song.image || 'https://placehold.co/300x300/161921/7c3aed?text=♪'}"
-        alt="${song.title} album art"
-        loading="lazy"
-        onerror="this.src='https://placehold.co/300x300/161921/7c3aed?text=♪'"
-      />
-    </div>
-    <div class="card-body">
-      <div>
-        <p class="card-title">${song.title}</p>
-        <p class="card-artist">${song.artist}</p>
-      </div>
-      <span class="card-listen">Listen on iTunes</span>
-    </div>
-  `;
-
-    return card;
+// ── Render helpers ─────────────────────────────────────────────
+function rerenderLists() {
+  renderSongs(songListEl, filteredSongs(), {
+    favIds, currentTrackId: currentSong?.trackId,
+    onPlay: playSong, onFav: handleFav,
+  });
+  renderFavorites(favListEl, favEmptyEl, favorites, {
+    currentTrackId: currentSong?.trackId,
+    onPlay: playSong, onRemove: handleRemoveFav,
+  });
 }
 
-/** Render an array of song objects into the grid */
-function renderSongs(songs) {
-    gridEl.innerHTML = '';
+function filteredSongs() {
+  const q = searchInput.value.trim().toLowerCase();
+  if (!q) return songs;
+  return songs.filter(s =>
+    s.title.toLowerCase().includes(q) || s.author.toLowerCase().includes(q));
+}
 
-    if (!songs.length) {
-        showError('No songs found. Try refreshing.');
-        return;
-    }
-
-    songs.forEach((song, i) => {
-        gridEl.appendChild(createCard(song, i + 1));
+// ── Favorites ──────────────────────────────────────────────────
+async function refreshFavorites() {
+  try {
+    const data = await getFavorites();
+    favorites = data.favorites || [];
+    favIds = new Set(favorites.map(f => f.trackId));
+    updateFavCount();
+    renderFavorites(favListEl, favEmptyEl, favorites, {
+      currentTrackId: currentSong?.trackId,
+      onPlay: playSong, onRemove: handleRemoveFav,
     });
-
-    gridEl.classList.remove('hidden');
+  } catch (e) { console.error(e); }
 }
 
-// ── Core data flow ─────────────────────────────────────────────────────────────
-
-/**
- * Fetch fresh data from iTunes (via backend), then load stored songs.
- * Guarded by `isFetching` to prevent duplicate calls.
- */
-async function loadSongs() {
-    if (isFetching) return;
-    isFetching = true;
-    setLoading(true);
-
-    try {
-        // Step 1: trigger backend to fetch + store songs from iTunes RSS
-        const fetchRes = await fetch(`${API_BASE}/fetch`);
-        if (!fetchRes.ok) {
-            const body = await fetchRes.json().catch(() => ({}));
-            throw new Error(body.error || `Fetch failed with status ${fetchRes.status}`);
-        }
-
-        // Step 2: retrieve the stored songs and render them
-        const songsRes = await fetch(`${API_BASE}/songs`);
-        if (!songsRes.ok) {
-            throw new Error(`Could not load songs (status ${songsRes.status})`);
-        }
-
-        const songs = await songsRes.json();
-        renderSongs(songs);
-    } catch (err) {
-        console.error('[loadSongs]', err);
-        showError(err.message || 'Something went wrong. Please try again.');
-    } finally {
-        setLoading(false);
-        isFetching = false;
-    }
+function updateFavCount() {
+  favCountEl.textContent = favorites.length;
+  favCountEl.style.display = favorites.length ? 'flex' : 'none';
 }
 
-// ── Init ───────────────────────────────────────────────────────────────────────
+async function handleFav(song, isAlreadyFav) {
+  if (isAlreadyFav) {
+    await handleRemoveFav(song.trackId);
+  } else {
+    await addFavorite(song);
+    await refreshFavorites();
+    rerenderLists();
+  }
+}
 
-refreshBtn.addEventListener('click', loadSongs);
+async function handleRemoveFav(trackId) {
+  await removeFavorite(trackId);
+  await refreshFavorites();
+  rerenderLists();
+}
 
-// Load on page startup
-loadSongs();
+// ── Load songs ─────────────────────────────────────────────────
+async function loadSongs(fromApple = false) {
+  if (isFetching) return;
+  isFetching = true;
+  btnRefresh.classList.add('loading');
+  btnRefresh.textContent = 'Loading…';
+  skeletonEl.style.display = 'flex';
+  songListEl.innerHTML = '';
+
+  try {
+    const data = fromApple ? await fetchFromApple() : await getSongs();
+    songs = data.songs || [];
+  } catch {
+    songs = [];
+    songListEl.innerHTML = `<div class="empty-state"><p>Could not load songs.</p>
+      <p class="empty-sub">Make sure the backend is running.</p></div>`;
+  }
+
+  skeletonEl.style.display = 'none';
+  rerenderLists();
+  isFetching = false;
+  btnRefresh.classList.remove('loading');
+  btnRefresh.innerHTML = `<svg viewBox="0 0 20 20" fill="none" width="16" height="16">
+    <path d="M4 10a6 6 0 1 0 1.5-3.9" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+    <path d="M4 5.5V10h4.5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg> Refresh`;
+}
+
+// ── Search ─────────────────────────────────────────────────────
+let searchTimer;
+searchInput.addEventListener('input', () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    renderSongs(songListEl, filteredSongs(), {
+      favIds, currentTrackId: currentSong?.trackId,
+      onPlay: playSong, onFav: handleFav,
+    });
+  }, 200);
+});
+
+// ── Refresh button ─────────────────────────────────────────────
+btnRefresh.addEventListener('click', () => loadSongs(true));
+
+// ── Skeleton render ────────────────────────────────────────────
+renderSkeleton(skeletonEl);
+
+// ── Init ───────────────────────────────────────────────────────
+initTheme();
+loadSongs(false);   // load from DB first (fast)
+refreshFavorites();

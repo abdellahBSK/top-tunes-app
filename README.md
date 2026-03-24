@@ -4,6 +4,9 @@ A modern, high-performance music curation application. **Music Selector v2** upg
 
 ---
 ![alt text](overview.png)
+
+This is the favorite songs page
+
 ![alt text](favorite.png)
 ## 🌟 Key Features
 

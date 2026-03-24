@@ -1,6 +1,7 @@
 const axios = require('axios');
 const xml2js = require('xml2js');
 const Song = require('../models/songModel');
+const CacheService = require('../infrastructure/cache/cacheService');
 
 const RSS_URL = 'https://rss.applemarketingtools.com/api/v2/us/music/most-played/10/songs.json';
 const LOOKUP_URL = 'https://itunes.apple.com/lookup';
@@ -54,14 +55,36 @@ async function fetchFromApple() {
   await Song.deleteMany({});
   await Song.insertMany(enriched);
 
+  // Update main cache and invalidate search caches
+  await CacheService.set('songs:top10', enriched);
+  await CacheService.deletePattern('songs:search:*');
+
   return enriched;
 }
 
 async function getSongsFromDB(search = '') {
-  if (search) {
-    return Song.find({ $text: { $search: search } }).sort({ rank: 1 }).lean();
+  const cacheKey = search ? `songs:search:${search}` : 'songs:top10';
+
+  // 1. Check Cache
+  const cachedData = await CacheService.get(cacheKey);
+  if (cachedData) {
+    return cachedData;
   }
-  return Song.find().sort({ rank: 1 }).lean();
+
+  // 2. Cache Miss -> Check DB
+  let songs;
+  if (search) {
+    songs = await Song.find({ $text: { $search: search } }).sort({ rank: 1 }).lean();
+  } else {
+    songs = await Song.find().sort({ rank: 1 }).lean();
+  }
+
+  // 3. Store in Cache
+  if (songs.length > 0) {
+    await CacheService.set(cacheKey, songs);
+  }
+
+  return songs;
 }
 
 module.exports = { fetchFromApple, getSongsFromDB };

@@ -134,12 +134,15 @@ export function renderFavorites(container, emptyEl, favorites, { currentTrackId,
   });
 }
 
-// ── Lyrics Simulation ───────────────────────────────────────
+// ── Lyrics Simulation & Sync ───────────────────────────────────────
 let lyricLines = [];
+let lyricsOffset = 0; // Interactive calibration offset
 
 export function renderLyrics(lyricsString) {
   const panel = document.getElementById('lyrics-panel');
   const content = document.getElementById('lyrics-content');
+
+  lyricsOffset = 0; // Reset on new song
 
   if (!lyricsString) {
     panel.style.display = 'block';
@@ -148,14 +151,56 @@ export function renderLyrics(lyricsString) {
     return;
   }
 
-  // Strip empty lines
+  // Strip empty lines and parse LRC timestamps [mm:ss.xx]
   const lines = lyricsString.split('\n').map(l => l.trim()).filter(l => l.length > 0);
 
-  content.innerHTML = lines.map((line, i) => `<div class="lyric-line" id="lyric-${i}">${line}</div>`).join('');
-  panel.style.display = 'block';
+  const parsedLines = lines.map((line, i) => {
+    const match = line.match(/^\[(\d{2}):(\d{2}(?:\.\d{2})?)\](.*)/);
+    if (match) {
+      const mins = parseInt(match[1], 10);
+      const secs = parseFloat(match[2]);
+      return { time: mins * 60 + secs, text: match[3].trim(), id: i, hasTime: true };
+    }
+    return { time: 0, text: line, id: i, hasTime: false };
+  });
 
+  const hasTimestamps = parsedLines.some(l => l.hasTime);
+
+  content.innerHTML = parsedLines.map(l =>
+    `<div class="lyric-line" id="lyric-${l.id}" data-time="${l.hasTime ? l.time : ''}" ${l.hasTime ? 'title="Preview unaligned? Tap to sync"' : ''} style="${l.hasTime ? 'cursor:pointer' : ''}">
+       ${l.text || '&nbsp;'}
+     </div>`
+  ).join('');
+
+  if (hasTimestamps) {
+    const hint = document.createElement('div');
+    hint.className = 'lyric-hint';
+    hint.style.fontSize = '12px';
+    hint.style.color = 'var(--text3)';
+    hint.style.margin = '0 auto 12px';
+    hint.style.fontStyle = 'italic';
+    hint.textContent = 'Preview unaligned? Tap the exact line you hear to sync it!';
+    content.prepend(hint);
+  }
+
+  panel.style.display = 'block';
   lyricLines = Array.from(content.querySelectorAll('.lyric-line'));
   content.style.transform = `translateY(0px)`;
+
+  // Bind interactive sync calibration clicks
+  lyricLines.forEach(el => {
+    el.addEventListener('click', () => {
+      const timeAttr = el.getAttribute('data-time');
+      if (timeAttr) {
+        const lineTime = parseFloat(timeAttr);
+        const audio = document.getElementById('audio-player');
+        if (audio && !audio.paused) {
+          lyricsOffset = lineTime - audio.currentTime;
+          updateLyricsSync(audio.currentTime, audio.duration, true);
+        }
+      }
+    });
+  });
 }
 
 export function showLyricsLoading() {
@@ -172,20 +217,41 @@ export function hideLyrics() {
   lyricLines = [];
 }
 
-export function updateLyricsSync(currentTime, duration) {
+export function updateLyricsSync(currentTime, duration, force = false) {
   if (!lyricLines.length || duration <= 0) return;
 
   const content = document.getElementById('lyrics-content');
-  const totalLines = lyricLines.length;
+  const hasTimestamps = lyricLines.some(el => el.getAttribute('data-time') !== '');
 
-  let activeIndex = Math.floor((currentTime / duration) * totalLines);
-  if (activeIndex >= totalLines) activeIndex = totalLines - 1;
+  let activeIndex = -1;
+
+  if (hasTimestamps) {
+    const virtualTime = currentTime + lyricsOffset;
+    for (let i = 0; i < lyricLines.length; i++) {
+      const timeAttr = lyricLines[i].getAttribute('data-time');
+      const t = timeAttr ? parseFloat(timeAttr) : Number.MAX_SAFE_INTEGER;
+
+      // If the virtual time has reached or passed this line, it might be the active one
+      if (virtualTime >= t) {
+        activeIndex = i;
+      } else {
+        // LRC is sequential; break on first future line
+        break;
+      }
+    }
+    // If before the first line, keep none active or first active
+    if (activeIndex === -1) activeIndex = 0;
+  } else {
+    // Fallback block pseudo-sync
+    const totalLines = lyricLines.length;
+    activeIndex = Math.floor((currentTime / duration) * totalLines);
+    if (activeIndex >= totalLines) activeIndex = totalLines - 1;
+  }
 
   lyricLines.forEach((el, i) => {
     if (i === activeIndex) {
-      if (!el.classList.contains('active')) {
+      if (!el.classList.contains('active') || force) {
         el.classList.add('active');
-        // Align the active line to the top visually
         const offset = -el.offsetTop;
         content.style.transform = `translateY(${offset}px)`;
       }

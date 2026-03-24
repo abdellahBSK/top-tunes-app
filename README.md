@@ -1,142 +1,103 @@
-# Music Selector v2
+# 🎵 Music Selector v2
 
-App 1 upgraded to surpass App 2 — with audio previews, favorites/playlist, search, dark/light mode, and a clean layered backend.
-
----
-
-# Get a shell inside the mongo container
-docker exec -it music-mongo mongosh
-
-# Then inside mongosh:
-use musicdb
-db.songs.find().pretty()
-db.favorites.find().pretty()
-db.songs.countDocuments()   
-
-## What's new vs v1
-
-| Feature | v1 | v2 |
-|---|---|---|
-| 30s audio preview | ✗ | ✅ via iTunes Lookup API |
-| Playback progress bar | ✗ | ✅ animated |
-| Favorites / playlist | ✗ | ✅ persisted in MongoDB |
-| Search / filter | ✗ | ✅ client-side + text index |
-| Dark / light mode toggle | ✗ | ✅ with system preference detection |
-| Cached DB endpoint | ✗ | ✅ `GET /songs` (no Apple call) |
-| Layered backend | ✗ | ✅ config / database / models / routes / services |
-| Makefile | ✗ | ✅ `make dev`, `make build`, `make clean` |
-| Vite proxy (no CORS in dev) | ✗ | ✅ |
-| Express static serving (prod) | ✗ | ✅ serves built frontend |
+A modern, high-performance music curation application. **Music Selector v2** upgrades the original concept with a robust layered backend, real-time audio previews, persistent user favorites, and a sleek dual-theme interface.
 
 ---
 
-## Tech stack
+## 🌟 Key Features
 
-| Layer | Technology |
-|---|---|
-| Frontend | Vite (vanilla JS), HTML5, CSS3 |
-| Backend | Node.js 20, Express, Axios, xml2js |
-| Database | MongoDB 7 (Mongoose) |
-| DevOps | Docker, Docker Compose, Makefile |
-
----
-
-## Project structure
-
-```
-music-selector-v2/
-├── backend/
-│   ├── app/
-│   │   └── createExpressApp.js   # App factory, middleware, routes
-│   ├── config/
-│   │   └── env.js                # Centralised env vars
-│   ├── database/
-│   │   └── mongo.js              # Mongoose connection
-│   ├── middleware/
-│   │   └── errorHandler.js       # Global error handler
-│   ├── models/
-│   │   ├── songModel.js          # Song schema (+ text index)
-│   │   └── favoriteModel.js      # Favorites schema
-│   ├── routes/
-│   │   ├── songRoutes.js         # GET /songs, GET /songs/fetch
-│   │   └── favoriteRoutes.js     # GET/POST/DELETE /favorites
-│   ├── services/
-│   │   ├── songService.js        # iTunes RSS + Lookup enrichment
-│   │   └── favoriteService.js    # Favorites CRUD
-│   ├── server.js
-│   ├── Dockerfile
-│   └── package.json
-├── frontend/
-│   ├── index.html
-│   ├── main.js                   # App init, audio, tabs, search, theme
-│   ├── apiClient.js              # fetch wrappers for all endpoints
-│   ├── ui.js                     # Render songs, favorites, skeleton, NowPlaying
-│   ├── style.css                 # Dark/light theme, editorial aesthetic
-│   ├── vite.config.js            # Dev proxy + prod build
-│   └── package.json
-├── docker-compose.yml
-├── Makefile
-└── .gitignore
-```
+| Feature | Description |
+| :--- | :--- |
+| **🎧 Audio Previews** | High-quality 30s previews sourced directly from the iTunes Lookup API. |
+| **❤️ Persistent Favorites** | Like tracks and have them saved instantly to a MongoDB cluster. |
+| **🔍 Smart Filter** | Debounced client-side filtering + backend text indexing for lightning-fast search. |
+| **🌓 Dynamic Themes** | Intelligent Dark/Light mode detection with custom UI transitions. |
+| **⚡ Layered Backend** | Production-ready architecture: Routes → Services → Models. |
+| **🐳 Dockerized** | Fully containerized environment for seamless deployment and consistency. |
 
 ---
 
-## Quick start
+## 🛠️ Tech Stack
 
-### Development (recommended)
-Runs the backend + MongoDB in Docker, frontend on Vite's dev server (with HMR):
+- **Frontend**: [Vite](https://vitejs.dev/) (Vanilla JS), HTML5, CSS3 Custom Properties.
+- **Backend**: [Node.js](https://nodejs.org/) 20, [Express](https://expressjs.com/), Axios, XML2JS.
+- **Database**: [MongoDB](https://www.mongodb.com/) 7 + [Mongoose](https://mongoosejs.com/).
+- **DevOps**: Docker, Docker Compose, GNU Make.
+
+---
+
+## 🚀 Quick Start
+
+Ensure you have **Docker**, **Docker Compose**, and **Node.js** installed.
+
+### Development Environment (Recommended)
+This mode runs the Backend and MongoDB in Docker, while the Frontend uses Vite's Hot Module Replacement (HMR) for instant updates.
 
 ```bash
 make dev
 ```
 
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:5000
+- **Frontend**: [http://localhost:5173](http://localhost:5173)
+- **Backend API**: [http://localhost:5000](http://localhost:5000)
 
-Vite proxies `/songs`, `/favorites`, `/health` to the backend — no CORS issues.
-
-### Production build
-Builds the frontend with Vite, then Express serves the `dist/` folder:
+### Production Build
+Builds the frontend minified assets and serves everything from the Express backend.
 
 ```bash
 make build
 ```
-
-- Everything at: http://localhost:5000
+- **Live App**: [http://localhost:5000](http://localhost:5000)
 
 ---
 
-## API endpoints
+## 📂 Project Structure
+
+```bash
+music-selector-v2/
+├── backend/            # Express.js layered server
+│   ├── app/           # App factory & central middleware
+│   ├── config/        # Environment & config management
+│   ├── database/      # Mongoose connection logic
+│   ├── models/        # Data schemas (Songs, Favorites)
+│   ├── routes/        # API endpoint definitions
+│   └── services/      # External API (Apple) & business logic
+├── frontend/           # Vite/Vanilla JS application
+│   ├── apiClient.js   # Reusable fetch wrappers
+│   ├── ui.js          # Modular DOM rendering
+│   └── main.js        # State orchestration & event handling
+├── docker-compose.yml  # Multi-container orchestration
+└── Makefile            # Developer automation scripts
+```
+
+---
+
+## 🔌 API Endpoints
 
 | Method | Path | Description |
-|---|---|---|
-| `GET` | `/songs` | Return cached songs from MongoDB. Accepts `?search=` |
-| `GET` | `/songs/fetch` | Hit Apple RSS + iTunes Lookup, refresh DB, return songs |
-| `GET` | `/favorites` | Return all favorites |
-| `POST` | `/favorites` | Add a song to favorites |
-| `DELETE` | `/favorites/:trackId` | Remove a song from favorites |
-| `GET` | `/health` | Health check |
+| :--- | :--- | :--- |
+| `GET` | `/songs` | Retrieves cached songs from MongoDB. Supports `?search=`. |
+| `GET` | `/songs/fetch` | Live sync from Apple RSS + iTunes Lookup enrichment. |
+| `GET` | `/favorites` | Returns the user's saved track list. |
+| `POST` | `/favorites` | Persists a track to the favorites collection. |
+| `DELETE` | `/favorites/:id`| Removes a track from favorites. |
+| `GET` | `/health` | Server status check. |
 
 ---
 
-## Makefile targets
+## 📜 Automation (Makefile)
 
-| Target | Description |
-|---|---|
-| `make dev` | Start Docker backend + Vite dev server |
-| `make build` | Build frontend, start full prod stack |
-| `make up` | Docker-compose up (backend + mongo only) |
-| `make down` | Stop containers |
-| `make logs` | Follow backend logs |
-| `make install` | npm install in both backend and frontend |
-| `make clean` | Stop containers, remove volumes + node_modules |
+| Target | Action |
+| :--- | :--- |
+| `make dev` | Spins up Backend/DB containers and Frontend dev server. |
+| `make build` | Generates frontend `dist/` and runs production stack. |
+| `make up` | Starts Docker containers in the background. |
+| `make down` | Gracefully stops all project containers. |
+| `make logs` | Streams backend logs for debugging. |
+| `make clean` | Wipes containers, volumes, and `node_modules`. |
 
 ---
 
-## Environment variables
-
-| Variable | Default | Description |
-|---|---|---|
-| `MONGO_URI` | `mongodb://mongo:27017/musicdb` | MongoDB connection string |
-| `PORT` | `5000` | Express port |
-| `NODE_ENV` | `development` | Set to `production` to serve Vite build |
+## 🤝 Documentation
+For deeper dives into how the app works:
+- 📖 [**App Workflow**](./APP_WORKFLOW.md) – End-to-end data and API cycle.
+- 📂 [**File Explorer**](./PROJECT_FILES.md) – Explanation of every source file.
